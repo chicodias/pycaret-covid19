@@ -12,16 +12,13 @@ output:
       highlightLines: true
       countIncrementalSlides: true
 ---
+class: center
 
-```{r include = F, message = F}
-library(data.table)
+```{r include = F, message = F, warning=FALSE}
 library(tidyverse)
-library(lubridate)
-library(xts)
-library(forecast)
 library(xaringanthemer)
-library(knitr)
 library(xaringanExtra)
+library(plotly)
 library(knitr)
 ```
 
@@ -33,6 +30,7 @@ style_mono_light("#0b2c57")
 xaringanExtra::use_logo(image_url = "https://github.com/predict-icmc/presentations/raw/master/logo-predict.png")
 ```
 
+
 ## Sobre a apresentação
 
 - **Motivação**: o pipeline padrão de um cientista de dados requer muitas linhas de código. 
@@ -40,92 +38,206 @@ xaringanExtra::use_logo(image_url = "https://github.com/predict-icmc/presentatio
 - **Objetivo**: apresentar o módulo `pycaret` como maneira de resolver problemas do Predict em 2020 e 2021, indicar como utilizá-lo como ferramenta.
 
 ---
+## Qual o foco de nossa análise?
 
-## PREDICT: qual foi o foco de nossa análise?
-
-  - 2020: Modelos de regressão
-    
+  - **2020**: Modelos de regressão
     - **Resposta**: total acumulado de casos
       - **Modelo**: Gompertz
       
-    
-```{r echo=FALSE, message = FALSE, eval = FALSE}
-dados_estados <- fread("https://raw.githubusercontent.com/wcota/covid19br/master/cases-brazil-states.csv") %>% filter(state == "SP")
-dados_estados$date <- as_date(dados_estados$date)
-
-sp_ts <- xts(x = dados_estados$newCases, order.by = dados_estados$date, frequency = 7)
-
-logi_ts <- xts(x = dados_estados$totalCases, order.by = dados_estados$date, 
-               frequency = 7)
-
-```
-```{r eval = F, gompertz-model, echo = FALSE}
-library(nls.multstart)
-#modelo gompertz auto inicializavel para numero diario total de casos confirmados
-fit.Gompertz <- function(treino){
-  
-  fit.Gompertz.1 <- nlsLM(totalCases ~ SSgompertz(tempo, Asym, b2, b3),
-                             data = treino)
-  
-  XX = (0:(max(treino$tempo)+14))
-  
-  Asym.G<-coef(fit.Gompertz.1)[1]
-  b2.G<-coef(fit.Gompertz.1)[2]
-  b3.G<-coef(fit.Gompertz.1)[3]
-     
-  yp.G<-Asym.G*exp((-b2.G)*(b3.G)^XX)
-       
-  return (tibble(x=XX,y=yp.G))
-}
-```
-
-```{r eval = F, echo = FALSE, message = FALSE}
-library(modelr)
-
-treino1G <- logi_ts[1:100]
-teste1G <- logi_ts[101:120]
-fit1G <- fit.Gompertz(treino1G)
-g1 <- ggplot() +
-  geom_col(aes(x = tempo, y = last_available_confirmed), data = treino1G) +
-  geom_col(aes(x = tempo, y = last_available_confirmed, color = "Observado"), data = teste1G) +
-  geom_line(aes(x=x, y = y, color = "Modelo de Gompertz"), data = fit1G) +
-  xlab("Dias após primeiro caso confirmado") + ylab("Total de casos confirmados")
-g1
-```
-
-
----
-
-## PREDICT: qual foi o foco de nossa análise?
-
-  - 2020: Modelos de regressão
-
     - **Resposta**: novos casos /óbitos diários
       - **Modelo**: SARIMA, Redes Neurais
 
-```{r eval = F, echo=FALSE}
-fit_nnetar <- nnetar(sp_ts, p=7)
+  - **2021**: Modelos de classificação
+  
+    - **Resposta**: indivíduo veio óbito ou não
+      - **Modelo**: Regressão logística, ...
+      
+---
 
-xxreg_nn <- forecast(fit_nnetar, 14)
+class: center, middle
+    
+```{r eval = F, echo=FALSE, message = FALSE}
+library(data.table)
+library(lubridate)
+library(xts)
+library(forecast)
+library(minpack.lm)
 
-autoplot(forecast(fit_nnetar, 14, PI = T))
+selectedCity <- fread("https://github.com/predict-icmc/covid19/raw/master/leitura-dados/sp_ts_.csv")[1:370]
+selectedCity$date <- as_date(selectedCity$date)
+```
+```{r  gompertz-model, eval = F, echo = FALSE, message = F}
+dt <- selectedCity[1:120] %>% mutate(totalCases = cumsum(newCases),
+                                     tempo = index(date)) %>% select(!c(newCases, date))
+
+fit.Gompertz.cases <- nlsLM(totalCases ~ SSgompertz(tempo, Asym, b2, b3),
+                        #start = c(Asym=1,b2=0,b3=0),
+                        data = dt)
+
+XX = (0:(max(dt$tempo)+10))
+ Asym.G<-coef(fit.Gompertz.cases)[1]
+ b2.G<-coef(fit.Gompertz.cases)[2]
+ b3.G<-coef(fit.Gompertz.cases)[3]
+ 
+ yp.G<-0
+ 
+ yp.G<-Asym.G*exp((-b2.G)*(b3.G)^XX)
+ 
+ inter <- confint(fit.Gompertz.cases)
+ 
+ yp.G.min<-inter[1,1]*exp((-b2.G)*(b3.G)^XX)
+ yp.G.max<-inter[1,2]*exp((-b2.G)*(b3.G)^XX)
+ 
+ predict.G<-data.frame(x=XX,y=yp.G, min = yp.G.min, max = yp.G.max)
+ 
+ predict.filtra <- predict.G %>% filter(x > max(dt$tempo))
+ 
+ selectedCity.filtra <- dt %>% filter(tempo > max(dt$tempo)-90)
+ # gera o grafico
+ o<-  ggplot() + 
+   geom_line(aes(x = tempo, y = totalCases), size = 1, color = "blue", data = selectedCity.filtra) +
+   geom_point(aes(x=x, y = y, color = "Gompertz"),
+              data = predict.filtra) +
+   geom_errorbar(aes(x = x, ymin=min, ymax=max), colour="black", alpha = 0.6, data = predict.filtra) +
+   labs(title = 'Previsão de casos confirmados de COVID-19', x = 'Dias', 
+        y = 'Total de casos confirmados', fill = '', color = "Modelo") +
+   theme_bw()
+ save(o, file ="p1.rda")
+```
+```{r echo=FALSE, out.height="85%", out.width="100%"}
+load("p1.rda")
+ggplotly(o)
+
+```
+
+---
+
+class: center, middle
+
+```{r nnar, eval = F, warning = F, echo=FALSE}
+ts <- xts(frollmean(selectedCity$newCases,7),selectedCity$date)
+
+  fit <- nnetar(ts)
+
+  pred <- predict(fit,14, PI = T, level =c(0.95, 0.80))
+
+trace1 <- list(
+   line = list(
+     color = "rgba(0,0,0,1)", 
+     fillcolor = "rgba(0,0,0,1)"
+   ), 
+   mode = "lines", 
+   name = "observed", 
+   type = "scatter", 
+   x =  selectedCity$date,
+   y =  round(frollmean(selectedCity$newCases, 7)), 
+   xaxis = "x", 
+   yaxis = "y"
+ )
+ trace2 <- list(
+   fill = "toself", 
+   line = list(
+     color = "rgba(242,242,242,1)", 
+     fillcolor = "rgba(242,242,242,1)"
+   ), 
+   mode = "lines", 
+    name = "95% confidence", 
+   type = "scatter", 
+   x = c(min(selectedCity$date) - ddays(1) + ddays(time(pred$mean)), rev( min( selectedCity$date)  - ddays(1) + ddays( time( pred$mean)))),
+   y = round( c( pred$upper[,1], rev(pred$lower[,1]))),
+   xaxis = "x", 
+   yaxis = "y", 
+   hoveron = "points"
+ )
+trace3 <- list(
+   fill = "toself", 
+   line = list(
+     color = "rgba(204,204,204,1)", 
+     fillcolor = "rgba(204,204,204,1)"
+   ), 
+   mode = "lines", 
+   name = "80% confidence", 
+   type = "scatter", 
+   x = c(min(selectedCity$date) - ddays(1) + ddays(time(pred$mean)), rev( min( selectedCity$date)  - ddays(1) + ddays( time( pred$mean)))),
+   y = round( c( pred$upper[,2], rev(pred$lower[,2]))),
+   xaxis = "x", 
+   yaxis = "y", 
+   hoveron = "points"
+ )
+ trace4 <- list(
+   line = list(
+     color = "rgba(0,0,255,1)", 
+     fillcolor = "rgba(0,0,255,1)"
+   ), 
+   mode = "lines", 
+   name = "prediction", 
+   type = "scatter", 
+   x = min(selectedCity$date) - ddays(1) + ddays(time(pred$mean)),
+   y = round( pred$mean), 
+   xaxis = "x", 
+   yaxis = "y"
+ )
+ data <- list(trace1, trace2, trace3, trace4)
+ layout <- list(
+   title = "Forecast from NNAR", 
+   xaxis = list(
+     title = " ", 
+     domain = range(selectedCity$date)
+   ), 
+   yaxis = list(
+     title = "Novos Casos Confirmados (Média Móvel de 7 dias)", 
+     domain = c(0, 1)
+   ), 
+   margin = list(
+     b = 40, 
+     l = 60, 
+     r = 10, 
+     t = 25
+   )
+ )
+ p <- plot_ly()
+ p <- add_trace(p, line=trace1$line, mode=trace1$mode, name=trace1$name, type=trace1$type, x=trace1$x, y=trace1$y, xaxis=trace1$xaxis, yaxis=trace1$yaxis)
+ p <- add_trace(p, fill=trace2$fill, line=trace2$line, mode=trace2$mode, name=trace2$name, type=trace2$type, x=trace2$x, y=trace2$y, xaxis=trace2$xaxis, yaxis=trace2$yaxis, hoveron=trace2$hoveron)
+ p <- add_trace(p, fill=trace3$fill, line=trace3$line, mode=trace3$mode, name=trace3$name, type=trace3$type, x=trace3$x, y=trace3$y, xaxis=trace3$xaxis, yaxis=trace3$yaxis, hoveron=trace3$hoveron)
+ p <- add_trace(p, line=trace4$line, mode=trace4$mode, name=trace4$name, type=trace4$type, x=trace4$x, y=trace4$y, xaxis=trace4$xaxis, yaxis=trace4$yaxis)
+ p <- layout(p, title=layout$title, xaxis=layout$xaxis, yaxis=layout$yaxis, margin=layout$margin, legend = list(orientation = "h"))
+p <- p %>%  add_bars(y = selectedCity$newCases, x = selectedCity$date, name = "Novos casos diários")
+save(p, file ="p2.rda")
+```
+```{r echo=FALSE, out.height="85%", out.width="100%"}
+load("p2.rda")
+p
 
 ```
 
 
 ---
+class: center, inverse, middle
 
-## PREDICT: qual foi o foco de nossa análise?
+## Pycaret
 
-  - 2021: Modelos de classificação
-    
-    - **Resposta**: óbito
-      - **Modelo**: Regressão logística, ...
+---
+
+**Pró**:
+ - Código mais compacto, robusto e interpretável;
+ - É possível focar mais nos dados do que na programação.
+
+**Contra**:
+- é necessário conhecer muito bem a documentação para entender o que está sendo feito, senão tudo vira uma caixa preta.
+
+
+```{r echo = F, out.width="70%", out.height="70%"}
+include_graphics("https://miro.medium.com/max/625/1*2otHnNXOngAcvKzcTo_vlw.jpeg")
+```
+
+Fonte: https://brianray-7981.medium.com/google-clouds-automl-first-look-cb7d29e06377
 
 ---
 
 ## Instalação local
-Altamente recomendável utilizar um ambiente virtual
+
+- Altamente recomendável utilizar um ambiente virtual (a documentação explica como criar um)
+
 ```{bash eval = FALSE}
 # install the full version of pycaret
 pip install pycaret[full]
@@ -133,12 +245,19 @@ pip install pycaret[full]
 pip install pycaret-ts-alpha
 ```
 
+Fonte: https://pycaret.readthedocs.io/en/latest/installation.html
+
+---
+
 ## Collab
 
 Utilize a versão "slim"
 ```{python eval = FALSE}
 !pip install pycaret
 ```
+
+Também é necessário ativar o modo collab:
+
 ```{python eval = FALSE}
 from pycaret.utils import enable_colab
 enable_colab()
@@ -146,6 +265,7 @@ enable_colab()
 
 
 Fonte: https://pycaret.readthedocs.io/en/latest/installation.html
+
 ---
 
 ## Carregando Módulos
@@ -161,6 +281,8 @@ from pycaret.arules import *         # Association Rule Mining
 from pycaret.time_series import *    # Time Series (experimental)
 
 ```
+
+--
 
  - **Classificação**: prever a classe de novas observações;
  
@@ -222,7 +344,7 @@ Passo inicial no _workflow_ de qualquer experimento supervisionado. Todos os mod
 ```{python eval = FALSE}
 compare_models()
 ```
-![](Compare.PNG)
+![](img/Compare.PNG)
 
 Fonte: https://pycaret.org/compare-models/
 
@@ -241,10 +363,13 @@ Por padrão, o parâmetro `fold = 10`.
 
 Métricas de avaliação que podem ser utilizadas:
 
-
- - Classificação: Accuracy, AUC, Recall, Precision, F1, Kappa, MCC.
+ - **Classificação**: Accuracy, AUC, Recall, Precision, F1, Kappa, MCC.
  
- - Regressão: MAE, MSE, RMSE, R2, RMSLE, MAPE
+ - **Regressão**: MAE, MSE, RMSE, R2, RMSLE, MAPE
+
+
+
+
 
 
 Fonte: https://pycaret.org/create-model/
@@ -281,7 +406,10 @@ Fonte: https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simpl
 
 ## Modelo tunado
 
-![](https://pbs.twimg.com/media/DwHbcrHXcAAZtp1.jpg)
+```{r echo = F, out.height="85%", out.width="80%"}
+include_graphics("https://pbs.twimg.com/media/DwHbcrHXcAAZtp1.jpg")
+```
+
 Fonte: https://pbs.twimg.com/media/DwHbcrHXcAAZtp1.jpg
 
 ---
@@ -314,6 +442,8 @@ Fonte: https://www.pycaret.org/ensemble-model
   
  - Deployment
   - Previsões
+  
+--
   
 ## Vamos programar!
 
