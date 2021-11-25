@@ -1,0 +1,330 @@
+---
+title: "Aplicações de Machine Learning em Dados de Covid-19 com o Pycaret"
+author: "Francisco Rosa Dias de Miranda"
+institute: "Predict - ICMC"
+date: "Novembro 2021"
+output:
+  xaringan::moon_reader:
+    css: xaringan-themer.css
+    nature:
+      slideNumberFormat: "%current%"
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: true
+---
+
+```{r include = F, message = F}
+library(data.table)
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(forecast)
+library(xaringanthemer)
+library(knitr)
+library(xaringanExtra)
+library(knitr)
+```
+
+
+```{r xaringan-logo, echo=FALSE}
+style_mono_light("#0b2c57")
+```
+```{r echo = FALSE}
+xaringanExtra::use_logo(image_url = "https://github.com/predict-icmc/presentations/raw/master/logo-predict.png")
+```
+
+## Sobre a apresentação
+
+- **Motivação**: o pipeline padrão de um cientista de dados requer muitas linhas de código. 
+
+- **Objetivo**: apresentar o módulo `pycaret` como maneira de resolver problemas do Predict em 2020 e 2021, indicar como utilizá-lo como ferramenta.
+
+---
+
+## PREDICT: qual foi o foco de nossa análise?
+
+  - 2020: Modelos de regressão
+    
+    - **Resposta**: total acumulado de casos
+      - **Modelo**: Gompertz
+      
+    
+```{r echo=FALSE, message = FALSE, eval = FALSE}
+dados_estados <- fread("https://raw.githubusercontent.com/wcota/covid19br/master/cases-brazil-states.csv") %>% filter(state == "SP")
+dados_estados$date <- as_date(dados_estados$date)
+
+sp_ts <- xts(x = dados_estados$newCases, order.by = dados_estados$date, frequency = 7)
+
+logi_ts <- xts(x = dados_estados$totalCases, order.by = dados_estados$date, 
+               frequency = 7)
+
+```
+```{r eval = F, gompertz-model, echo = FALSE}
+library(nls.multstart)
+#modelo gompertz auto inicializavel para numero diario total de casos confirmados
+fit.Gompertz <- function(treino){
+  
+  fit.Gompertz.1 <- nlsLM(totalCases ~ SSgompertz(tempo, Asym, b2, b3),
+                             data = treino)
+  
+  XX = (0:(max(treino$tempo)+14))
+  
+  Asym.G<-coef(fit.Gompertz.1)[1]
+  b2.G<-coef(fit.Gompertz.1)[2]
+  b3.G<-coef(fit.Gompertz.1)[3]
+     
+  yp.G<-Asym.G*exp((-b2.G)*(b3.G)^XX)
+       
+  return (tibble(x=XX,y=yp.G))
+}
+```
+
+```{r eval = F, echo = FALSE, message = FALSE}
+library(modelr)
+
+treino1G <- logi_ts[1:100]
+teste1G <- logi_ts[101:120]
+fit1G <- fit.Gompertz(treino1G)
+g1 <- ggplot() +
+  geom_col(aes(x = tempo, y = last_available_confirmed), data = treino1G) +
+  geom_col(aes(x = tempo, y = last_available_confirmed, color = "Observado"), data = teste1G) +
+  geom_line(aes(x=x, y = y, color = "Modelo de Gompertz"), data = fit1G) +
+  xlab("Dias após primeiro caso confirmado") + ylab("Total de casos confirmados")
+g1
+```
+
+
+---
+
+## PREDICT: qual foi o foco de nossa análise?
+
+  - 2020: Modelos de regressão
+
+    - **Resposta**: novos casos /óbitos diários
+      - **Modelo**: SARIMA, Redes Neurais
+
+```{r eval = F, echo=FALSE}
+fit_nnetar <- nnetar(sp_ts, p=7)
+
+xxreg_nn <- forecast(fit_nnetar, 14)
+
+autoplot(forecast(fit_nnetar, 14, PI = T))
+
+```
+
+
+---
+
+## PREDICT: qual foi o foco de nossa análise?
+
+  - 2021: Modelos de classificação
+    
+    - **Resposta**: óbito
+      - **Modelo**: Regressão logística, ...
+
+---
+
+## Instalação local
+Altamente recomendável utilizar um ambiente virtual
+```{bash eval = FALSE}
+# install the full version of pycaret
+pip install pycaret[full]
+# time series module (beta)
+pip install pycaret-ts-alpha
+```
+
+## Collab
+
+Utilize a versão "slim"
+```{python eval = FALSE}
+!pip install pycaret
+```
+```{python eval = FALSE}
+from pycaret.utils import enable_colab
+enable_colab()
+```
+
+
+Fonte: https://pycaret.readthedocs.io/en/latest/installation.html
+---
+
+## Carregando Módulos
+Atualmente, existem 6 módulos estáveis e um beta suportados.
+
+```{python eval=FALSE}
+from pycaret.classification import * # Classification
+from pycaret.regression import *     # Regression
+from pycaret.clustering import *     # Clustering
+from pycaret.anomaly import *        # Anomaly Detection
+from pycaret.nlp import *            # Natural Language Processing
+from pycaret.arules import *         # Association Rule Mining
+from pycaret.time_series import *    # Time Series (experimental)
+
+```
+
+ - **Classificação**: prever a classe de novas observações;
+ 
+ - **Regressão**: prever valores de novas observações;
+ 
+ - **Detecção de Anomalias**: identificar valores ou eventos raros.
+ 
+ - **Processamento de Linguagem Natural**: análise de corpus textuais;
+ 
+ - **Association Rule Mining**: $\{cebolas, batatas\} \rightarrow \{tomate\}$;
+ 
+ - **Séries Temporais** (beta)
+---
+
+## Setup
+
+Primeiro e único passo obrigarório em qualquer experimento. Embora o comando seja simples, muitas coisas acontecem aqui:
+
+ - **Tipo dos dados**: inferido automaticamente, confira e pressione `enter`
+
+
+![](https://i0.wp.com/pycaret.org/wp-content/uploads/2020/02/setup1-1.png?resize=599%2C346&ssl=1)
+
+Fonte: https://pycaret.org/setup/
+
+---
+
+## Setup
+
+Também é possível passar os tipos diretamente através dos argumentos:
+
+```{python eval = F}
+categorical = ['asma', 'diabetes', 'obesidade']
+
+numeric = ['idade']
+
+clf = setup(data = dados, target='obito', 
+            categorical_features = categorical,
+            numeric_features = numeric,
+            session_id = 4336)
+```
+
+ - **session_id**: semente aleatória, para reprodutibilidade do experimento
+ 
+ - **limpeza/preparação**: tratamento de dados faltantes, data inputting
+ 
+ - **amostragem**: modelos preliminares com diferentes tamanhos amostrais 
+ 
+ - **data splitting**: a amostra é separada em treino e teste (70:30 por padrão)
+
+
+Fonte: https://pycaret.org/setup/
+---
+
+## Comparando modelos
+
+Passo inicial no _workflow_ de qualquer experimento supervisionado. Todos os modelos da biblioteca são ajustados e suas métricas de performance são avaliadas.
+
+```{python eval = FALSE}
+compare_models()
+```
+![](Compare.PNG)
+
+Fonte: https://pycaret.org/compare-models/
+
+---
+
+## Criar o modelo
+
+Toma como parâmetro o ID do modelo e retorna uma tabela com métricas de validação cruzada em _k-folds_ (no caso supervisionado), assim como o modelo.
+
+Por padrão, o parâmetro `fold = 10`.
+
+```{python eval = F}
+ dt = create_model('dt')
+```
+
+
+Métricas de avaliação que podem ser utilizadas:
+
+
+ - Classificação: Accuracy, AUC, Recall, Precision, F1, Kappa, MCC.
+ 
+ - Regressão: MAE, MSE, RMSE, R2, RMSLE, MAPE
+
+
+Fonte: https://pycaret.org/create-model/
+
+---
+
+## Tunar o modelo
+
+Encontra melhores hiperparâmetros do modelo criado através de um random grid search (modelos supervisionados). Similar à função `create_model()`
+
+```{python eval = F}
+tuned_dt = tune_model(dt)
+```
+
+ - Por padrão, essa função realiza 10 iterações aleatórias dentro do espaço de busca, controlado através do parâmetro `n_iter`
+ 
+ - Aumentá-lo pode custar mais tempo, porém regularmente oferece um modelo melhor otimizado.
+ 
+ - A métrica a ser otimizada pode ser definida através do parâmetro `optimize `. 
+ 
+- Por padrão são utilizados o $R^2$ em tarefas de Regressão, e a _acurácia_ na Classificação.
+
+
+Fonte: https://pycaret.org/tune-model/
+
+---
+
+## Modelo criado
+
+![](https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simples-ja-e-vendida-por-r-48050.jpg)
+Fonte: https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simples-ja-e-vendida-por-r-48050.jpg
+
+---
+
+## Modelo tunado
+
+![](https://pbs.twimg.com/media/DwHbcrHXcAAZtp1.jpg)
+Fonte: https://pbs.twimg.com/media/DwHbcrHXcAAZtp1.jpg
+
+---
+
+## E em seguida?
+
+Depende da sua tarefa, do seu conhecimento e da sua disposição!
+
+Alguns passos extras para a modelagem:
+
+- Ensembling
+  - Bagging
+  - Boosting
+- Blending
+  - Model voting
+- Stacking
+  - Multiple Layer
+
+Fonte: https://www.pycaret.org/ensemble-model
+
+
+---
+
+
+## O que mais?
+
+ - Análise do modelo
+  - Plots
+  - Interpretação
+  
+ - Deployment
+  - Previsões
+  
+## Vamos programar!
+
+ 1. `covid-class.ipynb`
+ 1. `covid-ts.ipynb`
+
+
+---
+
+class: center, middle, inverse
+
+##"... all models are approximations. Essentially, all models are wrong, but some are useful. However, the approximate nature of the model must always be borne in mind...."
+
+#George Box
