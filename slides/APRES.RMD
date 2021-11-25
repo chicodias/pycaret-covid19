@@ -350,7 +350,7 @@ Fonte: https://pycaret.org/compare-models/
 
 ---
 
-## Criar o modelo
+## Ajustar o modelo
 
 Toma como parâmetro o ID do modelo e retorna uma tabela com métricas de validação cruzada em _k-folds_ (no caso supervisionado), assim como o modelo.
 
@@ -366,10 +366,6 @@ Métricas de avaliação que podem ser utilizadas:
  - **Classificação**: Accuracy, AUC, Recall, Precision, F1, Kappa, MCC.
  
  - **Regressão**: MAE, MSE, RMSE, R2, RMSLE, MAPE
-
-
-
-
 
 
 Fonte: https://pycaret.org/create-model/
@@ -397,7 +393,7 @@ Fonte: https://pycaret.org/tune-model/
 
 ---
 
-## Modelo criado
+## Modelo ajutado
 
 ![](https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simples-ja-e-vendida-por-r-48050.jpg)
 Fonte: https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simples-ja-e-vendida-por-r-48050.jpg
@@ -433,7 +429,6 @@ Fonte: https://www.pycaret.org/ensemble-model
 
 ---
 
-
 ## O que mais?
 
  - Análise do modelo
@@ -443,7 +438,6 @@ Fonte: https://www.pycaret.org/ensemble-model
  - Deployment
   - Previsões
   
---
   
 ## Vamos programar!
 
