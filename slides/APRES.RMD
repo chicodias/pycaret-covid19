@@ -1,5 +1,5 @@
 ---
-title: "Aplicações de Machine Learning em Dados de Covid-19 com o Pycaret"
+title: "Utilizando o Pycaret com dados do Covid-19"
 author: "Francisco Rosa Dias de Miranda"
 institute: "Predict - ICMC"
 date: "Novembro 2021"
@@ -61,7 +61,9 @@ library(data.table)
 library(lubridate)
 library(xts)
 library(forecast)
+library(tidyverse)
 library(minpack.lm)
+library(plotly)
 
 selectedCity <- fread("https://github.com/predict-icmc/covid19/raw/master/leitura-dados/sp_ts_.csv")[1:370]
 selectedCity$date <- as_date(selectedCity$date)
@@ -104,6 +106,7 @@ XX = (0:(max(dt$tempo)+10))
    theme_bw()
  save(o, file ="p1.rda")
 ```
+
 ```{r echo=FALSE, out.height="85%", out.width="100%"}
 load("p1.rda")
 ggplotly(o)
@@ -212,18 +215,9 @@ p
 
 
 ---
-class: center, inverse, middle
+class: center, middle
 
 ## Pycaret
-
----
-
-**Pró**:
- - Código mais compacto, robusto e interpretável;
- - É possível focar mais nos dados do que na programação.
-
-**Contra**:
-- é necessário conhecer muito bem a documentação para entender o que está sendo feito, senão tudo vira uma caixa preta.
 
 
 ```{r echo = F, out.width="70%", out.height="70%"}
@@ -231,6 +225,23 @@ include_graphics("https://miro.medium.com/max/625/1*2otHnNXOngAcvKzcTo_vlw.jpeg"
 ```
 
 Fonte: https://brianray-7981.medium.com/google-clouds-automl-first-look-cb7d29e06377
+
+
+---
+
+## Pycaret
+
+**O que é?**
+   - Uma biblioteca para automatizar o pipeline padrão de um experimento em ciência de dados.
+
+
+**Pró**:
+ - Código mais compacto, robusto e interpretável;
+ - É possível focar mais nos dados do que na programação.
+
+**Contra**:
+ - Necessário conhecer muito bem a documentação para entender o que está sendo feito, senão tudo vira uma caixa preta.
+ - Por estar em desenvolvimento, novos módulos podem surgir e outros ficarem _deprecated_ rapidamente.
 
 ---
 
@@ -393,7 +404,7 @@ Fonte: https://pycaret.org/tune-model/
 
 ---
 
-## Modelo ajutado
+## Modelo ajustado
 
 ![](https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simples-ja-e-vendida-por-r-48050.jpg)
 Fonte: https://cdn.motor1.com/images/mgl/PqO9K/s1/saveiro-surf-2015-cabine-simples-ja-e-vendida-por-r-48050.jpg
@@ -451,4 +462,4 @@ class: center, middle, inverse
 
 ##"... all models are approximations. Essentially, all models are wrong, but some are useful. However, the approximate nature of the model must always be borne in mind...."
 
-#George Box
+# George Box
