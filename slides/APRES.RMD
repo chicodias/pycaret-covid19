@@ -458,6 +458,15 @@ Fonte: https://www.pycaret.org/ensemble-model
 
 ---
 
+## O que vimos hoje?
+
+### mini-pipeline do pycaret:
+   1. `setup()`
+   1. `create_model()`
+   1. `tune_model()`
+   1. `finalize_model()`
+
+---
 class: center, middle, inverse
 
 ##"... all models are approximations. Essentially, all models are wrong, but some are useful. However, the approximate nature of the model must always be borne in mind...."
